@@ -117,6 +117,11 @@ pin_direct_t switch_pin;
 extern menu_state_t g_menu_state;
 bool menu_b1_first = false;
 
+#define HAVE_SERIAL_CMD
+typedef enum {
+    SERIAL_CMD_SET_TIME = 't'
+} serial_commands_t;
+
 /*
  * FIXME: more display modes
  *
@@ -125,7 +130,7 @@ bool menu_b1_first = false;
  * (example: 8-digits: Auto 1: HH.MM.SS, Auto 2: HH-MM-SS)
  * temp - show temp and associated info
  * flw  - show FLW
- * 
+ *
  */
 
 // display modes
@@ -155,7 +160,7 @@ void push_display_mode(display_mode_t d)
 
 void pop_display_mode()
 {
-    display_mode = saved_display_mode;    
+    display_mode = saved_display_mode;
 }
 
 void initialize(void)
@@ -167,11 +172,11 @@ void initialize(void)
 
   // initialize alarm switch
   pinMode(PinMap::alarm_switch, INPUT_PULLUP);  // input with pullup
-  
+
   switch_pin.pin = PinMap::alarm_switch;
   switch_pin.reg = PIN_TO_INPUT_REG(switch_pin.pin);
   switch_pin.bitmask = PIN_TO_BITMASK(switch_pin.pin);
-  
+
   g_alarm_switch = DIRECT_PIN_READ(switch_pin.reg,  switch_pin.bitmask);
 
   sei();
@@ -180,7 +185,7 @@ void initialize(void)
 #ifdef HAVE_RGB_BACKLIGHT
   // fixme: refactor into backlight class
   pca9685_wake();
-  
+
   // Turn off all LEDs
   for (uint8_t i = 0; i < 16; i++)
     pca9685_set_channel(i, 0);
@@ -188,7 +193,7 @@ void initialize(void)
 
   rtc.begin();
   rtc.runClock(true);
-  
+
   if (rtc.isDS3231())
     Serial.println("Clock detected as DS3231");
   else
@@ -200,7 +205,7 @@ void initialize(void)
 #ifdef HAVE_SHIELD_AUTODETECT
   detect_shield();
 #else
-  set_shield(SHIELD, SHIELD_DIGITS); 
+  set_shield(SHIELD, SHIELD_DIGITS);
 #endif
 
   globals_init();
@@ -229,16 +234,16 @@ void initialize(void)
   PCICR |= (1 << PCIE2);
   PCMSK2 |= (1 << PCINT18);
   */
-  
+
 #ifdef HAVE_RTC_SQW
     // set up interrupt for RTC SQW
     PCICR |= (1 << PCIE0);
     PCMSK0 |= (1 << PCINT4); // RTC SQW
-  
+
     rtc.SQWSetFreq(WireRtcLib::FREQ_1);
     rtc.SQWEnable(true);
 #endif
-  
+
 #ifdef HAVE_GPS
     // setup UART for GPS
     gps_init(g_gps_enabled);
@@ -265,7 +270,7 @@ uint8_t print_digits(uint8_t num, uint8_t offset);
 
 bool have_temp_sensor(void)
 {
-#ifdef HAVE_MPL115A2      
+#ifdef HAVE_MPL115A2
     return true;
 #endif
 #ifdef HAVE_HIH6121
@@ -284,7 +289,7 @@ void read_temp()
 
     int8_t t;
     uint8_t f;
-    
+
     t = (int)temp;
     f = (int)((temp-t)*100);
 
@@ -294,10 +299,10 @@ void read_temp()
     MPL115A2.shutdown();
 
     float temp = MPL115A2.GetTemperature() + TEMP_CORR;
-    
+
     int8_t t;
     uint8_t f;
-    
+
     t = (int)temp;
     f = (int)((temp-t)*100);
 
@@ -356,19 +361,19 @@ void read_flw()
   static uint8_t flw_counter = 0;
   static uint8_t flw_offset = 0;
   static int8_t flw_offset_direction = 1;
-  
+
   if (flw_counter++ == 1) {
     set_string(flw.get_word(), flw_offset);
     flw_counter = 0;
-    
+
     if (get_digits() > 4)
         flw_offset += flw_offset_direction;
-    
+
     if (flw_offset_direction == 1 && flw_offset > get_digits()-5)
         flw_offset_direction = -1;
     else if (flw_offset_direction == -1 && flw_offset == 0)
         flw_offset_direction = 1;
-  }  
+  }
 #endif
 }
 
@@ -381,8 +386,8 @@ void update_display()
 
 #ifdef HAVE_AUTO_DST
     if (tt->sec % 10 == 0)  // check DST Offset every 10 seconds (60?)
-        setDSToffset(g_DST_mode); 
-        
+        setDSToffset(g_DST_mode);
+
         if ((tt->hour == 0) && (tt->min == 0) && (tt->sec == 0)) {  // MIDNIGHT!
 //          Serial.println("Midnight");  // wbp debug
             g_DST_updated = false;
@@ -403,7 +408,7 @@ void update_display()
             show_time(tt, g_24h_clock, false);
         }
         else {
-            set_string("OFF");          
+            set_string("OFF");
         }
     }
     else if (display_mode == MODE_AUTO_TEMP) {
@@ -416,7 +421,7 @@ void update_display()
         // fixme: implement temp sub mode 0-temp,1-pressure,2-humidity
     }
     else if (display_mode == MODE_AUTO_FLW) {
-       read_flw();    
+       read_flw();
        if (tt->sec >= 50) pop_display_mode();
     }
     else if (g_has_flw && g_flw_enabled != FLW_OFF && tt->sec == 40) {
@@ -425,7 +430,7 @@ void update_display()
     }
     else if (g_has_flw && display_mode == MODE_FLW && tt->sec == 58) {
         push_display_mode(MODE_AUTO_TIME);
-        show_time(tt, g_24h_clock, MODE_NORMAL);   
+        show_time(tt, g_24h_clock, MODE_NORMAL);
     }
     else if (display_mode == MODE_AUTO_TIME) {
         show_time(tt, g_24h_clock, MODE_NORMAL);
@@ -443,8 +448,8 @@ void update_display()
     }
 #endif
     else {
-        show_time(tt, g_24h_clock, display_mode);   
-    } 
+        show_time(tt, g_24h_clock, display_mode);
+    }
 }
 
 void set_date(uint8_t yy, uint8_t mm, uint8_t dd) {
@@ -453,12 +458,12 @@ void set_date(uint8_t yy, uint8_t mm, uint8_t dd) {
   tt->mon = mm;
   tt->mday = dd;
   rtc.setTime(tt);
-  
+
 #ifdef HAVE_AUTO_DST
   DSTinit(tt, g_DST_Rules);  // re-compute DST start, end for new date
   g_DST_updated = false;  // allow automatic DST adjustment again
   setDSToffset(g_DST_mode);  // set DSToffset based on new date
-#endif // HAVE_AUTO_DST 
+#endif // HAVE_AUTO_DST
 }
 
 void start_alarm(void)
@@ -490,7 +495,7 @@ void setup()
 //  for (int i=0; i<46; i++) {
 //    pinMode(i, OUTPUT);  // set pins to OUTPUT to save power
 //  }
-    
+
 #ifdef HAVE_SERIAL_DEBUG
   while (!Serial) ;
 #endif
@@ -501,7 +506,7 @@ void setup()
 
   Serial.begin(9600);
   Serial.println("VFD Deluxe");
-  
+
   //  tone(PinMap::piezo, NOTE_A5, 100);  // test tone
   tone(PinMap::piezo, 880, 100);  // test tone
   //  _delay_ms(500);
@@ -519,7 +524,7 @@ void setup()
 //  tone(11, 440, 500);  // test tone
 //  wDelay(500);
 //  set_display(1);
-	
+
   switch (shield) {
     case(SHIELD_IV6):
       set_string("IV-6");
@@ -539,7 +544,7 @@ void setup()
 
   Serial.println("setup done");
   wDelay(1000);
-  
+
   /*
   // test: write alphabet
   while (1) {
@@ -570,15 +575,15 @@ void loop()
   int16_t time_to_set = 0;
   uint16_t button_released_timer = 0;
   uint16_t button_speed = 25;
-  
+
   push_display_mode(MODE_NORMAL);
-  
+
   while (1) {
 		t1 = wMillis();
 		get_button_state(&buttons);
 
-                if (buttons.b1_keyup)  tone(11, 1000, 1);  
-                if (buttons.b2_keyup)  tone(11, 1000, 1);  
+                if (buttons.b1_keyup)  tone(11, 1000, 1);
+                if (buttons.b2_keyup)  tone(11, 1000, 1);
 
 		if (snooze_count>0)
 			snooze_count--;
@@ -595,12 +600,12 @@ void loop()
 			update_display();
 
 			// fixed: if keydown is detected here, wait for keyup and clear state
-			// this prevents going into the menu when disabling the alarm 
+			// this prevents going into the menu when disabling the alarm
 			if (buttons.b1_keydown || buttons.b1_keyup || buttons.b2_keydown || buttons.b2_keyup) {
 			    buttons.b1_keyup = 0; // clear state
 		            buttons.b2_keyup = 0; // clear state
 
-                            if (g_snooze_enabled) {    
+                            if (g_snooze_enabled) {
                                 start_alarm();  // restart alarm sequence
 		                snooze_count = g_snooze_time*60*10;  // start snooze timer
 			        if (get_digits() == 8)
@@ -609,9 +614,9 @@ void loop()
                                     set_string("Snooze");
 			        else
 		                    set_string("snze");
-			    
+
                                 wDelay(500);
-			    
+
                                 while (buttons.b1_keydown || buttons.b2_keydown) {  // wait for button to be released
 	                            wDelay(100);
 				    get_button_state(&buttons);
@@ -627,7 +632,7 @@ void loop()
                             if (g_alarmtype == ALARM_PROGRESSIVE) {
 				alarm_count++;
 				if (alarm_count > alarm_cycle) {  // once every alarm_cycle
-					beep_count = alarm_count = 0;  // restart cycle 
+					beep_count = alarm_count = 0;  // restart cycle
 					if (alarm_cycle>20)  // if more than 2 seconds
 						alarm_cycle = alarm_cycle - 20;  // shorten delay by 2 seconds
 					if (beep_cycle<20)
@@ -652,7 +657,7 @@ void loop()
 		else if (g_menu_state == STATE_CLOCK && buttons.both_held) {
                         //Serial.println("Both held");
                         stop_alarm();  // setting time or alarm, cancel alarm
-    
+
 			if (g_alarm_switch) {
 				g_menu_state = STATE_SET_ALARM;
 				show_set_alarm();
@@ -662,14 +667,14 @@ void loop()
 			}
 			else {
 				g_menu_state = STATE_SET_CLOCK;
-				show_set_time();		
+				show_set_time();
                                 g_second_dots_on = false;
 				rtc.getTime_s(&hour, &min, &sec);
 				time_to_set = hour*60 + min;
 			}
 
 			set_blink(true);
-			
+
 			// wait until both buttons are released
 			while (1) {
 				wDelay(50);
@@ -697,7 +702,7 @@ void loop()
 				set_blink(false);
 				button_released_timer = 0;
 				button_speed = 1;
-				
+
 				// fixme: should be different in 12h mode
 				if (g_menu_state == STATE_SET_CLOCK)
 					rtc.setTime_s(time_to_set / 60, time_to_set % 60, 0);
@@ -729,7 +734,7 @@ void loop()
                 else if (g_menu_state == STATE_CLOCK && display_mode == MODE_AUTO_TIME && (buttons.b1_keyup || buttons.b2_keyup)) {
                     pop_display_mode();
                     update_display();
-                }                
+                }
                 else if (g_menu_state == STATE_CLOCK && display_mode == MODE_AUTO_DATE && !scrolling()) {
                     pop_display_mode();
                     update_display();
@@ -749,7 +754,7 @@ void loop()
 		// Right button toggles display mode
 		else if (g_menu_state == STATE_CLOCK && buttons.b1_keyup) {
 			display_mode = (display_mode_t)((int)display_mode + 1);
-        
+
 #ifdef HAVE_FLW
                         if (!g_has_flw) display_mode = (display_mode_t)((int)display_mode + 1); // skip if no EEPROM
 #endif
@@ -762,7 +767,7 @@ void loop()
 				button_released_timer++;
 			else
 				button_released_timer = 0;
-			
+
 			if (button_released_timer >= MENU_TIMEOUT) {
 				button_released_timer = 0;
 				g_menu_state = STATE_CLOCK;
@@ -775,8 +780,8 @@ void loop()
                         }
                         if (buttons.b2_keyup) {  // left button
                            menu_b1_first = true;  // reset first time flag
-                           
-                           next_menu_item();      
+
+                           next_menu_item();
                            menu(false, false);
                            buttons.b2_keyup = 0; // clear state
                         }
@@ -802,7 +807,7 @@ void loop()
                         if (g_update_rtc) {
                             g_update_rtc = false;
                             update_display();  // read RTC and display time
-                        }    
+                        }
 #else
 			// read RTC approx ever other time thru loop (every 200ms)
 			static uint8_t cnt = 0;
@@ -813,7 +818,7 @@ void loop()
 		}
 
                 uint8_t sw = DIRECT_PIN_READ(switch_pin.reg,  switch_pin.bitmask);
-                
+
                 if (sw != g_alarm_switch) {
                     g_alarm_switch = sw;
                     if (!g_alarm_switch)
@@ -830,10 +835,23 @@ void loop()
 #ifdef HAVE_GPS
         if (g_gps_enabled && g_menu_state == STATE_CLOCK) {
             if (gpsDataReady()) {
-                parseGPSdata(gpsNMEA());  // get the GPS serial stream and possibly update the clock 
+                parseGPSdata(gpsNMEA());  // get the GPS serial stream and possibly update the clock
             }
         }
 #endif
+
+#ifdef HAVE_SERIAL_CMD
+        if (Serial.available() > 0) {
+            char cmd = Serial.read();
+            if (cmd == SERIAL_CMD_SET_TIME) {
+                hour = Serial.read();
+                min = Serial.read();
+                sec = Serial.read();
+                rtc.setTime_s(hour, min, sec);
+            }
+        }
+#endif // HAVE_SERIAL_CMD
+
         while ((wMillis()-t1)<100) ; // wait until 100 ms since start of loop
     }
 
