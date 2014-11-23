@@ -378,6 +378,7 @@ void set_blink(bool on)
 
 void set_display(bool on)
 {
+  if (!on && display_on) clear_display();
   display_on = on;
 }
 
@@ -1160,7 +1161,7 @@ ISR(TIMER1_COMPA_vect)
     _millis++;
 
     sei(); // enable interrupts during display mux to allow tone() to run
-    if (display_on)  display_multiplex();
+    if (display_on) display_multiplex();
     cli();
 
     // control blinking: on time is slightly longer than off time

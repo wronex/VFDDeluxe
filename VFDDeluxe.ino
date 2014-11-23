@@ -119,7 +119,8 @@ bool menu_b1_first = false;
 
 #define HAVE_SERIAL_CMD
 typedef enum {
-    SERIAL_CMD_SET_TIME = 't'
+    SERIAL_CMD_SET_TIME = 't',
+    SERIAL_CMD_SET_DISPLAY = 'd'
 } serial_commands_t;
 
 /*
@@ -842,13 +843,18 @@ void loop()
 
 #ifdef HAVE_SERIAL_CMD
         if (Serial.available() > 0) {
-            char cmd = Serial.read();
-            if (cmd == SERIAL_CMD_SET_TIME) {
-                hour = Serial.read();
-                min = Serial.read();
-                sec = Serial.read();
-                rtc.setTime_s(hour, min, sec);
-            }
+          char cmd = Serial.read();
+          switch (cmd) {
+            case SERIAL_CMD_SET_TIME: {
+              hour = Serial.read();
+              min = Serial.read();
+              sec = Serial.read();
+              rtc.setTime_s(hour, min, sec);
+              } break;
+            case SERIAL_CMD_SET_DISPLAY: {
+              set_display(Serial.read() == '1');
+            } break;
+          } // switch
         }
 #endif // HAVE_SERIAL_CMD
 
